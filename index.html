@@ -110,11 +110,28 @@ footer { max-width: 860px; margin: 0 auto; padding: 4px 14px 20px; font-size: 12
   .settings { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
   .settings label { font-size: 12px; }
 }
+.pv { position: fixed; inset: 0; z-index: 50; background: #525659; display: flex; flex-direction: column; }
+.pv[hidden] { display: none; }
+.pv-bar { display: flex; gap: 6px; padding: 8px; background: var(--ink); flex-wrap: wrap; align-items: center; }
+.pv-bar .btn { padding: 8px 12px; }
+.pv-bar .btn.primary { flex: 0 0 auto; }
+.pv-bar .btn:disabled { opacity: .5; cursor: default; }
+#pvInfo { color: #fff; font-size: 13px; margin-right: auto; padding: 0 4px; }
+.pv-pages { overflow: auto; flex: 1; padding: 12px; -webkit-overflow-scrolling: touch; }
+.pv-pages img { display: block; width: 100%; max-width: 820px; margin: 0 auto 14px; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.45); }
+@page { size: A4; margin: 0; }
 @media print {
   :root { --bg: #fff; --card: #fff; --text: #000; --muted: #333; --line: #999; --waste: #ccc; --stock: #e6c88f; --stock-text: #4a3510; color-scheme: light; }
   header, .no-print, footer, #msg, #info { display: none !important; }
   .print-only { display: block; }
-  main { max-width: none; padding: 0; }
+  main { max-width: none; padding: 12mm; }
+  /* Önizleme açıkken yalnızca hazır sayfa görüntüleri basılır (önizleme = PDF = kâğıt) */
+  body.pv-open > :not(#pv) { display: none !important; }
+  body.pv-open #pv { position: static; display: block; background: none; }
+  body.pv-open .pv-bar { display: none; }
+  body.pv-open .pv-pages { overflow: visible; padding: 0; }
+  body.pv-open .pv-pages img { width: 209mm; height: 296mm; max-width: none; margin: 0; box-shadow: none; object-fit: contain; break-after: page; page-break-after: always; }
+  body.pv-open .pv-pages img:last-child { break-after: auto; page-break-after: auto; }
   .card { border: 0; padding: 4px 0; break-inside: avoid; }
   .seg, .alarm, .alarm .fix { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .alarm { animation: none; box-shadow: none; }
@@ -169,6 +186,16 @@ footer { max-width: 860px; margin: 0 auto; padding: 4px 14px 20px; font-size: 12
   <div id="info" role="status"></div>
   <div id="out"></div>
 </main>
+<div id="pv" class="pv" hidden role="dialog" aria-modal="true" aria-label="Baskı önizleme">
+  <div class="pv-bar">
+    <button type="button" class="btn" id="pvClose">✕ Kapat</button>
+    <span id="pvInfo" role="status"></span>
+    <button type="button" class="btn" id="pvShare" disabled>Paylaş</button>
+    <button type="button" class="btn" id="pvPdf" disabled>PDF kaydet</button>
+    <button type="button" class="btn primary" id="pvPrint" disabled>Yazdır</button>
+  </div>
+  <div class="pv-pages" id="pvPages"></div>
+</div>
 
 <script>
 // ===== ÇÖZÜCÜ (arayüzden bağımsız) =====
@@ -875,6 +902,7 @@ async function calculate() {
   input.more = more;
   show(input, r);
   lastSig = s;
+  lastPlan = { input, r };
   $('#out').classList.toggle('stale', sig() !== s); // hesap sürerken giriş değiştiyse
   return true;
 }
@@ -921,11 +949,11 @@ $('#calc').onclick = async () => {
   if (alarm) { alarm.scrollIntoView({ behavior: 'smooth', block: 'start' }); alarm.focus({ preventScroll: true }); }
   else if (window.innerWidth < 700) $('#out').scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
-// Yazdır: plan yoksa ya da eskiyse önce hesaplar.
+// Yazdır: plan yoksa ya da eskiyse önce hesaplar, sonra sayfa önizlemesini açar.
 $('#print').onclick = async () => {
   if (busy) return;
-  if ((lastSig === null || sig() !== lastSig) && !(await runCalc())) return;
-  try { window.print(); } catch {}
+  if ((lastSig === null || sig() !== lastSig || !lastPlan) && !(await runCalc())) return;
+  openPreview();
 };
 $('#out').addEventListener('click', e => {
   const m = e.target.closest('.showmore'); if (m) m.closest('.alarm').classList.add('showall');
@@ -937,8 +965,345 @@ $('#reset').onclick = () => {
   if (!resetTimer) { b.textContent = 'Emin misiniz? Tekrar basın'; resetTimer = setTimeout(() => { b.textContent = 'Temizle'; resetTimer = null; }, 4000); return; }
   clearTimeout(resetTimer); resetTimer = null; b.textContent = 'Temizle';
   gen++;
-  S = defaults(); save(); render(); lastSig = null;
+  S = defaults(); save(); render(); lastSig = null; lastPlan = null;
   $('#out').innerHTML = ''; $('#msg').textContent = ''; $('#info').textContent = '';
+};
+// ===== ÖNİZLEME, PDF, PAYLAŞ =====
+// Sayfalar tuvale (canvas) çizilir; aynı görüntüler hem önizlemede, hem PDF'te, hem yazdırmada kullanılır.
+let lastPlan = null;
+const PG = { W: 595.28, H: 841.89, M: 36, K: 2.5 }; // A4, pt; K = piksel/pt (≈180 dpi)
+const PFONT = 'system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
+const PC = { text: '#1d252c', muted: '#5f6b76', ink: '#26323d', line: '#c9d0d6', waste: '#cfd5da', stock: '#e6c88f', stockText: '#4a3510', bad: '#c0392b', badBg: '#fdecea', badInk: '#7a1d12' };
+const pf = (sz, w = 400, it = false) => `${it ? 'italic ' : ''}${w} ${sz}px ${PFONT}`;
+const labelPlain = (labels, times = 1) => {
+  const named = labels.filter(([l]) => l);
+  if (!named.length) return '';
+  const list = named.map(([l, n]) => `${l}${times > 1 || labels.length > 1 || n > 1 ? ' ×' + n : ''}`).join(', ');
+  return ` (${times > 1 ? `${times} boyda toplam: ` : ''}${list})`;
+};
+
+function planBlocks(input, r) {
+  const { opt } = input;
+  const M = PG.M, CW = PG.W - 2 * PG.M;
+  const mctx = document.createElement('canvas').getContext('2d');
+  const wrap = (s, font, maxW) => {
+    mctx.font = font;
+    const out = [];
+    for (const para of String(s).split('\n')) {
+      let cur = '';
+      for (const w of para.split(' ')) {
+        const t = cur ? cur + ' ' + w : w;
+        if (!cur || mctx.measureText(t).width <= maxW) cur = t; else { out.push(cur); cur = w; }
+      }
+      out.push(cur);
+    }
+    return out;
+  };
+  const B = [];
+  const boxBg = (ctx, y, h) => { ctx.fillStyle = PC.badBg; ctx.fillRect(M, y, CW, h); ctx.fillStyle = PC.bad; ctx.fillRect(M, y, 3, h); };
+  // Paragraf bloğu. box: kırmızı uyarı kutusunun içinde; keep: sonraki blokla aynı sayfada kalsın
+  const text = (s, { size = 9.5, w = 400, color = PC.text, indent = 0, after = 2, box = false, keep = false, italic = false } = {}) => {
+    const pad = box ? 12 : 0, font = pf(size, w, italic), lh = size * 1.32;
+    const lines = wrap(s, font, CW - indent - 2 * pad);
+    const h = lines.length * lh + after;
+    B.push({ h, keep, draw(ctx, y) {
+      if (box) boxBg(ctx, y, h);
+      ctx.font = font; ctx.fillStyle = color;
+      lines.forEach((ln, i) => ctx.fillText(ln, M + pad + indent, y + i * lh + (lh - size) / 2));
+    } });
+  };
+  const space = (h, box = false) => B.push({ h, draw(ctx, y) { if (box) boxBg(ctx, y, h); } });
+
+  const colorOf = new Map();
+  [...new Set(input.parts.map(p => p.len))].sort((a, b) => b - a).forEach((l, i) => colorOf.set(l, COLORS[i % COLORS.length]));
+  const totalParts = input.parts.reduce((a, p) => a + p.qty, 0);
+  const placed = r.groups.reduce((a, g) => a + g.count * g.times, 0);
+  const used = r.groups.reduce((a, g) => a + g.used * g.times, 0);
+  const restSum = r.groups.reduce((a, g) => a + g.rest * g.times, 0);
+  const util = r.stockLen ? used / r.stockLen : 0;
+
+  // Başlık
+  text('Boy Kesim Planı', { size: 18, w: 700, after: 3 });
+  text(`${new Date().toLocaleDateString('tr-TR')} · Testere payı ${fmt(opt.kerf)} mm · Baş kafa payı ${fmt(opt.head)} mm · Son kafa payı ${fmt(opt.tail)} mm${opt.head > 0 || opt.tail > 0 ? ' (kafa paylarını kesmek için ayrıca testere payı düşüldü)' : ''}`, { size: 8.5, color: PC.muted, after: 10 });
+
+  // Uyarılar
+  const short = r.unplaced.filter(u => u.reason === 'stock'), long = r.unplaced.filter(u => u.reason === 'long');
+  const bx = { box: true, color: PC.badInk };
+  if (short.length) {
+    const n = short.reduce((a, u) => a + u.n, 0), more = input.more || [];
+    space(8, true);
+    text('⚠ STOK YETMİYOR', { ...bx, size: 15, w: 800, color: PC.bad, after: 3, keep: true });
+    text(`${totalParts} parçanın ${n} tanesi elinizdeki stoktan ÇIKMIYOR.`, { ...bx, size: 11, w: 700, after: 4, keep: true });
+    text('Kesilemeyen parçalar:', { ...bx, keep: true });
+    short.forEach(u => text(`• ${u.n} × ${fmt(u.len)} mm${labelPlain(u.labels)}`, { ...bx, w: 600, indent: 6 }));
+    space(4, true);
+    if (more.length) {
+      text(`${long.length ? 'Stok yetmediği için kesilemeyen bu parçaların çıkması için' : 'Bütün parçaların çıkması için'} elinizdekine ek olarak ${more.length > 1 ? 'şunlardan biri yeter' : 'şu kadar stok gerekir'}:`, { ...bx, w: 700, keep: true });
+      more.forEach(m => text(`• ${fmt(m.len)} mm boydan ${m.n} adet daha`, { ...bx, w: 700, indent: 6 }));
+    } else text('Stok ekleyin: eksik parçalar için stok boy adedini artırın ya da adet kutusuna 0 yazıp (sınırsız) yeniden hesaplayın.', { ...bx, w: 700 });
+    space(3, true);
+    text('Plan, olabildiğince çok sayıda parça çıkacak şekilde kurulur; dışarıda kalanlar genellikle en uzun parçalardır. Malzemeyi tamamlamadan kesime başlarsanız bu parçalar eksik kalır.', { ...bx, size: 8.5 });
+    space(8, true); space(10);
+  }
+  if (long.length) {
+    const n = long.reduce((a, u) => a + u.n, 0);
+    space(8, true);
+    text('⚠ PARÇA STOĞA SIĞMIYOR', { ...bx, size: 15, w: 800, color: PC.bad, after: 3, keep: true });
+    text(`${n} parça hiçbir stok boyunuzdan çıkmaz.`, { ...bx, size: 11, w: 700, after: 4, keep: true });
+    long.forEach(u => text(`• ${u.n} × ${fmt(u.len)} mm${labelPlain(u.labels)} — en az ${fmt(u.need)} mm boy gerekir`, { ...bx, w: 600, indent: 6 }));
+    space(3, true);
+    text('Gereken boya kafa payları ve onları kesmek için gereken testere payları dahildir. Daha uzun stok ekleyin ya da parçayı bölün.', { ...bx, size: 8.5 });
+    space(8, true); space(10);
+  }
+
+  // Özet kutuları
+  const stats = [
+    [String(r.bars), 'Kullanılan boy'],
+    ['%' + fmt(Math.round(util * 1000) / 10), 'Verim'],
+    [fmt(Math.round((r.stockLen - used) / 10) / 100) + ' m', 'Toplam fire (artık dahil)'],
+    [fmt(Math.round(restSum / 10) / 100) + ' m', 'Artık parçalar'],
+    [`${placed} / ${totalParts}`, placed < totalParts ? `Yerleşen · ${totalParts - placed} EKSİK` : 'Yerleşen parça'],
+  ];
+  B.push({ h: 38, draw(ctx, y) {
+    ctx.strokeStyle = PC.line; ctx.lineWidth = 0.8; ctx.strokeRect(M, y, CW, 32);
+    const cw = CW / stats.length;
+    stats.forEach(([v, l], i) => {
+      const bad = i === 4 && placed < totalParts;
+      ctx.fillStyle = bad ? PC.bad : PC.text; ctx.font = pf(13, 700); ctx.fillText(v, M + 8 + i * cw, y + 5);
+      ctx.fillStyle = bad ? PC.bad : PC.muted; ctx.font = pf(7.2); ctx.fillText(l, M + 8 + i * cw, y + 21);
+    });
+  } });
+  const perStock = new Map();
+  r.groups.forEach(g => perStock.set(g.stockLen, (perStock.get(g.stockLen) || 0) + g.times));
+  if (perStock.size) text('Kullanılan stok: ' + [...perStock].map(([l, n]) => `${fmt(l)} mm: ${n} adet`).join(' · '), { size: 9, color: PC.muted, after: 4 });
+  // Gösterim anahtarı
+  const hatch = (ctx, x, y, w, h) => {
+    ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+    ctx.fillStyle = '#b9c0c6'; ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = '#8c959d'; ctx.lineWidth = 1.1; ctx.beginPath();
+    for (let d = -h; d < w; d += 3.5) { ctx.moveTo(x + d, y + h); ctx.lineTo(x + d + h, y); }
+    ctx.stroke(); ctx.restore();
+  };
+  B.push({ h: 18, draw(ctx, y) {
+    let x = M; ctx.font = pf(8); ctx.lineWidth = 0.6; ctx.strokeStyle = PC.ink;
+    const chip = (fill, label, hatched) => {
+      if (hatched) hatch(ctx, x, y + 2, 16, 8); else { ctx.fillStyle = fill; ctx.fillRect(x, y + 2, 16, 8); }
+      ctx.strokeRect(x, y + 2, 16, 8); ctx.fillStyle = PC.muted; ctx.fillText(label, x + 20, y + 2); x += 26 + ctx.measureText(label).width + 12;
+    };
+    chip(COLORS[0], 'Kesilen parça'); chip(PC.stock, 'Artık (stoktan kalan)'); chip(PC.waste, 'Fire / testere');
+    if (opt.head > 0 || opt.tail > 0) chip(null, 'Kafa payı', true);
+  } });
+
+  // Kesim çubuğu
+  const drawBar = (ctx, x, y, w, h, g) => {
+    const s = w / g.stockLen;
+    ctx.fillStyle = PC.waste; ctx.fillRect(x, y, w, h);
+    ctx.textAlign = 'center'; ctx.lineWidth = 0.6; ctx.strokeStyle = PC.ink;
+    const label = (t, cx, cw, font, color) => { ctx.font = font; if (ctx.measureText(t).width + 3 <= cw) { ctx.fillStyle = color; ctx.fillText(t, cx, y + (h - 8) / 2); } };
+    let p = 0;
+    if (opt.head > 0) { const hw = Math.max(2, opt.head * s); hatch(ctx, x, y, hw, h); ctx.beginPath(); ctx.moveTo(x + hw, y); ctx.lineTo(x + hw, y + h); ctx.stroke(); p = opt.head + opt.kerf; }
+    for (const it of g.items) for (let k = 0; k < it.n; k++) {
+      const px = x + p * s, pw = it.len * s;
+      ctx.fillStyle = colorOf.get(it.len) || COLORS[0]; ctx.fillRect(px, y, pw, h);
+      ctx.beginPath(); ctx.moveTo(px + pw, y); ctx.lineTo(px + pw, y + h); ctx.stroke();
+      label(fmt(it.len), px + pw / 2, pw, pf(8), PC.text);
+      p += it.len + opt.kerf;
+    }
+    if (g.rest > 0) { const px = x + p * s, pw = g.rest * s; ctx.fillStyle = PC.stock; ctx.fillRect(px, y, pw, h); label(fmt(g.rest), px + pw / 2, pw, pf(8, 400, true), PC.stockText); }
+    if (opt.tail > 0) { const tw = Math.max(2, opt.tail * s); hatch(ctx, x + w - tw, y, tw, h); ctx.beginPath(); ctx.moveTo(x + w - tw, y); ctx.lineTo(x + w - tw, y + h); ctx.stroke(); }
+    ctx.textAlign = 'left'; ctx.lineWidth = 0.9; ctx.strokeRect(x, y, w, h);
+  };
+
+  // Boylar
+  const contentH = PG.H - 2 * PG.M;
+  let no = 1;
+  for (const g of r.groups) {
+    const title = (g.times === 1 ? `Boy ${no}` : `Boy ${no}–${no + g.times - 1}`) + (g.times > 1 ? ` · ${g.times} adet aynı kesim` : '');
+    no += g.times;
+    const pct = '%' + fmt(Math.round(g.used / g.stockLen * 1000) / 10);
+    const items = g.items.map(it => `• ${it.n} × ${fmt(it.len)} mm${g.times > 1 ? ' her boyda' : ''}${labelPlain(it.labels, g.times)}`).concat(`• Artık: ${g.rest > 0 ? fmt(g.rest) + ' mm' : 'yok'}`);
+    const lf = pf(9.5), lh = 12.5;
+    const lines = items.map(t => wrap(t, lf, CW - 8));
+    const headH = 16 + 12 + 26 + 6;
+    const listH = lines.reduce((a, l) => a + l.length * lh, 0);
+    const head = (ctx, y) => {
+      ctx.font = pf(11.5, 700); ctx.fillStyle = PC.text; ctx.fillText(title, M, y);
+      ctx.font = pf(10); ctx.fillStyle = PC.muted; ctx.textAlign = 'right'; ctx.fillText(pct, M + CW, y + 1); ctx.textAlign = 'left';
+      ctx.font = pf(8.5); ctx.fillText(`Stok ${fmt(g.stockLen)} mm`, M, y + 16);
+      drawBar(ctx, M, y + 28, CW, 26, g);
+    };
+    if (headH + listH + 14 <= contentH) {
+      B.push({ h: headH + listH + 14, draw(ctx, y) {
+        head(ctx, y);
+        let yy = y + headH; ctx.font = lf; ctx.fillStyle = PC.text;
+        for (const l of lines) for (const ln of l) { ctx.fillText(ln, M + 4, yy); yy += lh; }
+        ctx.strokeStyle = PC.line; ctx.lineWidth = 0.6; ctx.beginPath(); ctx.moveTo(M, yy + 6); ctx.lineTo(M + CW, yy + 6); ctx.stroke();
+      } });
+    } else { // bir sayfaya sığmayacak kadar uzun liste: satırlar sonraki sayfaya akar
+      B.push({ h: headH, keep: true, draw: head });
+      items.forEach(t => text(t, { indent: 4, after: 0 }));
+      space(14);
+    }
+  }
+
+  // Girdi özeti (en sonda: kesim sayfaları önde kalsın)
+  space(8);
+  text('Girdi özeti — kesilecek parçalar', { size: 11, w: 700, after: 4, keep: true });
+  const row = (cols, { bold = false, line = true } = {}) => B.push({ h: 12.5, keep: bold && !line, draw(ctx, y) {
+    ctx.font = pf(8.8, bold ? 700 : 400); ctx.fillStyle = PC.text;
+    cols.forEach(([t, x, right]) => {
+      if (right) { ctx.textAlign = 'right'; ctx.fillText(t, M + x, y + 1); ctx.textAlign = 'left'; }
+      else {
+        let s = String(t), maxW = CW - x;
+        while (s.length > 1 && ctx.measureText(s).width > maxW) s = s.slice(0, -2) + '…';
+        ctx.fillText(s, M + x, y + 1);
+      }
+    });
+    if (line) { ctx.strokeStyle = PC.line; ctx.lineWidth = 0.4; ctx.beginPath(); ctx.moveTo(M, y + 12); ctx.lineTo(M + 300, y + 12); ctx.stroke(); }
+  } });
+  row([['Adet', 40, true], ['Uzunluk (mm)', 120, true], ['Etiket', 135]], { bold: true, line: false });
+  input.parts.forEach(p => row([[String(p.qty), 40, true], [fmt(p.len), 120, true], [p.label || '–', 135]]));
+  const totalLen = input.parts.reduce((a, p) => a + p.len * p.qty, 0);
+  row([[String(totalParts), 40, true], [fmt(Math.round(totalLen / 10) / 100) + ' m', 120, true], ['Toplam', 135]], { bold: true, line: false });
+  space(10);
+  text('Girdi özeti — stok boylar', { size: 11, w: 700, after: 4, keep: true });
+  row([['Adet', 40, true], ['Uzunluk (mm)', 120, true]], { bold: true, line: false });
+  input.stocks.forEach(s => row([[s.qty === Infinity ? 'Sınırsız' : String(s.qty), 40, true], [fmt(s.len), 120, true]]));
+  return B;
+}
+
+function paginate(blocks) {
+  const top = PG.M, bottom = PG.H - PG.M;
+  const pages = [[]];
+  let y = top;
+  blocks.forEach((b, i) => {
+    let need = b.h;
+    for (let j = i; blocks[j]?.keep && blocks[j + 1] && j < i + 6; j++) need += blocks[j + 1].h; // başlık yalnız kalmasın
+    if (y + Math.min(need, bottom - top) > bottom && y > top) { pages.push([]); y = top; }
+    pages[pages.length - 1].push({ b, y }); y += b.h;
+  });
+  return pages;
+}
+
+const canvasBlob = (c, type, q) => new Promise((res, rej) => c.toBlob(b => b ? res(b) : rej(new Error('toBlob')), type, q));
+async function deflate(u8) {
+  const stream = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+// Sayfa görüntüsünü PDF'e uygun biçime çevirir: kayıpsız (Flate), desteklenmiyorsa JPEG
+async function pdfImage(c, ctx) {
+  if (typeof CompressionStream !== 'undefined') {
+    try {
+      const { data } = ctx.getImageData(0, 0, c.width, c.height);
+      const rgb = new Uint8Array(c.width * c.height * 3);
+      for (let p = 0, q = 0; p < data.length; p += 4) { rgb[q++] = data[p]; rgb[q++] = data[p + 1]; rgb[q++] = data[p + 2]; }
+      return { filter: 'FlateDecode', bytes: await deflate(rgb), w: c.width, h: c.height };
+    } catch {}
+  }
+  const b = await canvasBlob(c, 'image/jpeg', 0.92);
+  return { filter: 'DCTDecode', bytes: new Uint8Array(await b.arrayBuffer()), w: c.width, h: c.height };
+}
+// Her sayfası tam sayfa bir görüntü olan PDF dosyası
+function makePdf(imgs) {
+  const te = new TextEncoder(), chunks = [], offs = [];
+  let len = 0;
+  const push = x => { const b = typeof x === 'string' ? te.encode(x) : x; chunks.push(b); len += b.length; };
+  const obj = (n, ...body) => { offs[n] = len; push(`${n} 0 obj\n`); body.forEach(push); push('\nendobj\n'); };
+  push('%PDF-1.4\n%âãÏÓ\n');
+  const n = imgs.length, kids = imgs.map((_, i) => `${3 + i * 3} 0 R`).join(' ');
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Kids [${kids}] /Count ${n} >>`);
+  imgs.forEach((im, i) => {
+    const pg = 3 + i * 3, ct = pg + 1, ix = pg + 2;
+    const content = `q ${PG.W} 0 0 ${PG.H} 0 0 cm /Im0 Do Q`;
+    obj(pg, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PG.W} ${PG.H}] /Resources << /XObject << /Im0 ${ix} 0 R >> >> /Contents ${ct} 0 R >>`);
+    obj(ct, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    obj(ix, `<< /Type /XObject /Subtype /Image /Width ${im.w} /Height ${im.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /${im.filter} /Length ${im.bytes.length} >>\nstream\n`, im.bytes, '\nendstream');
+  });
+  const total = 3 + n * 3, xref = len;
+  push(`xref\n0 ${total}\n0000000000 65535 f \n`);
+  for (let i = 1; i < total; i++) push(String(offs[i]).padStart(10, '0') + ' 00000 n \n');
+  push(`trailer\n<< /Size ${total} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(chunks, { type: 'application/pdf' });
+}
+
+let pvCache = null, pvToken = 0;
+const pvFileName = () => { const d = new Date(), z = x => String(x).padStart(2, '0'); return `boy-kesim-${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}.pdf`; };
+function pvButtons(on) { ['#pvShare', '#pvPdf', '#pvPrint'].forEach(s => $(s).disabled = !on); }
+function closePreview() {
+  pvToken++;
+  $('#pv').hidden = true; document.body.classList.remove('pv-open'); document.body.style.overflow = '';
+  $('#print').focus();
+}
+async function openPreview() {
+  const { input, r } = lastPlan;
+  const box = $('#pvPages'), info = $('#pvInfo');
+  $('#pv').hidden = false; document.body.classList.add('pv-open'); document.body.style.overflow = 'hidden';
+  $('#pvClose').focus();
+  if (pvCache && pvCache.sig === lastSig) { // aynı plan: hazır sayfaları kullan
+    info.textContent = `${pvCache.n} sayfa · A4`; pvButtons(true); return;
+  }
+  const token = ++pvToken;
+  pvButtons(false);
+  if (pvCache) pvCache.urls.forEach(u => URL.revokeObjectURL(u));
+  pvCache = null; box.innerHTML = '';
+  info.textContent = 'Sayfalar hazırlanıyor…';
+  await new Promise(res => setTimeout(res, 30));
+  try {
+    const pages = paginate(planBlocks(input, r));
+    const c = document.createElement('canvas');
+    c.width = Math.round(PG.W * PG.K); c.height = Math.round(PG.H * PG.K);
+    const ctx = c.getContext('2d');
+    const date = new Date().toLocaleDateString('tr-TR');
+    const urls = [], imgs = [];
+    for (let i = 0; i < pages.length; i++) {
+      if (token !== pvToken) return; // önizleme kapatıldı
+      ctx.setTransform(PG.K, 0, 0, PG.K, 0, 0);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, PG.W, PG.H);
+      ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+      for (const { b, y } of pages[i]) b.draw(ctx, y);
+      ctx.font = pf(7.5); ctx.fillStyle = PC.muted;
+      ctx.fillText(`Boy Kesim Planı · ${date}`, PG.M, PG.H - PG.M + 12);
+      ctx.textAlign = 'right'; ctx.fillText(`Sayfa ${i + 1} / ${pages.length}`, PG.W - PG.M, PG.H - PG.M + 12); ctx.textAlign = 'left';
+      const url = URL.createObjectURL(await canvasBlob(c, 'image/png'));
+      urls.push(url);
+      const img = new Image(); img.src = url; img.alt = `Sayfa ${i + 1}`; box.appendChild(img);
+      imgs.push(await pdfImage(c, ctx));
+      info.textContent = `Sayfalar hazırlanıyor… ${i + 1} / ${pages.length}`;
+    }
+    c.width = c.height = 0; // belleği bırak
+    if (token !== pvToken) return;
+    const file = new File([makePdf(imgs)], pvFileName(), { type: 'application/pdf' });
+    pvCache = { sig: lastSig, n: pages.length, urls, file };
+    info.textContent = `${pages.length} sayfa · A4`;
+    pvButtons(true);
+  } catch (e) {
+    if (token === pvToken) info.textContent = 'Sayfalar hazırlanamadı: ' + (e?.message || e);
+  }
+}
+function downloadPdf() {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(pvCache.file); a.download = pvCache.file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+}
+$('#pvClose').onclick = closePreview;
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#pv').hidden) closePreview(); });
+$('#pvPdf').onclick = () => { if (pvCache) { downloadPdf(); $('#pvInfo').textContent = `PDF kaydedildi: ${pvCache.file.name}`; } };
+$('#pvPrint').onclick = async () => {
+  await Promise.all([...$('#pvPages').querySelectorAll('img')].map(i => i.decode?.().catch(() => {})));
+  try { window.print(); } catch {}
+};
+// Paylaş: dosya paylaşımı destekleniyorsa sistemin paylaş menüsü açılır; değilse PDF indirilir
+$('#pvShare').onclick = () => {
+  if (!pvCache) return;
+  const f = pvCache.file, data = { files: [f], title: 'Boy Kesim Planı' };
+  if (navigator.canShare?.(data)) {
+    navigator.share(data).catch(e => { if (e?.name !== 'AbortError') { downloadPdf(); $('#pvInfo').textContent = 'Paylaşılamadı; PDF indirildi, oradan paylaşabilirsiniz.'; } });
+  } else {
+    downloadPdf();
+    $('#pvInfo').textContent = 'Bu tarayıcı doğrudan paylaşmayı desteklemiyor; PDF indirildi, oradan paylaşabilirsiniz.';
+  }
 };
 render();
 </script>
