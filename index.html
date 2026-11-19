@@ -1,0 +1,963 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boy Kesim – Profil, boru, çıta kesim planı</title>
+<meta name="description" content="Stok boylardan parça kesimi için en az fireli kesim planı. Testere payı ve kafa payı hesaba katılır.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='1' y='12' width='30' height='8' fill='%23e8d9b5' stroke='%2326323d' stroke-width='2'/><path d='M11 12v8M21 12v8' stroke='%2326323d' stroke-width='2'/></svg>">
+<style>
+:root {
+  --bg: #f1f3f5; --card: #fff; --text: #1d252c; --muted: #5f6b76; --line: #d6dbe0;
+  --accent: #2f6f8f; --accent-text: #fff; --bad: #c0392b; --bad-bg: #fdecea;
+  --waste: #cfd5da; --ink: #26323d;
+  --part-c: #2f6f8f; --part-bg: #edf5fa; --stock-c: #a86f1c; --stock-bg: #fbf3e5; --stock: #e6c88f; --stock-text: #4a3510;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14191d; --card: #1d242a; --text: #e4e9ed; --muted: #9aa6b0; --line: #34404a;
+    --accent: #5aa3c6; --accent-text: #0d1317; --bad: #f08a7a; --bad-bg: #3a2320;
+    --waste: #3a444c; color-scheme: dark;
+    --part-c: #5aa3c6; --part-bg: #172832; --stock-c: #d6a557; --stock-bg: #2b2417; --stock: #7a6238; --stock-text: #f5e6c8;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+header { background: var(--ink); color: #fff; padding: 12px 16px; }
+header h1 { margin: 0 auto; max-width: 860px; font-size: 19px; }
+main { max-width: 860px; margin: 0 auto; padding: 12px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+h2 { font-size: 16px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+.card.partbox { background: var(--part-bg); border-color: var(--part-c); border-left-width: 6px; }
+.card.partbox h2 { color: var(--part-c); }
+.card.stockbox { background: var(--stock-bg); border-color: var(--stock-c); border-left-width: 6px; }
+.card.stockbox h2 { color: var(--stock-c); }
+.partbox .add { border-color: var(--part-c); color: var(--part-c); }
+.stockbox .add { border-color: var(--stock-c); color: var(--stock-c); }
+.partbox input:focus { outline-color: var(--part-c); }
+.stockbox input:focus { outline-color: var(--stock-c); }
+.chip { display: inline-block; width: 22px; height: 12px; border: 1px solid var(--ink); border-radius: 2px; vertical-align: -1px; }
+.chip.p { background: #8ec5e0; } .chip.s { background: var(--stock); } .chip.h { background: repeating-linear-gradient(135deg, #9aa3ab 0 4px, #b9c0c6 4px 8px); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); margin: 0 0 12px; }
+details.setbox { padding: 0; }
+details.setbox > summary { cursor: pointer; padding: 12px 14px; font-weight: 600; list-style: none; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+details.setbox > summary::-webkit-details-marker { display: none; }
+details.setbox > summary::before { content: '▸'; color: var(--muted); }
+details.setbox[open] > summary::before { content: '▾'; }
+#setSum { font-weight: 400; font-size: 14px; color: var(--muted); }
+details.setbox .settings { padding: 0 14px 14px; }
+.info { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.thead, .row { display: grid; gap: 8px; align-items: center; }
+.parts { grid-template-columns: .8fr 1.3fr 1.6fr 36px; }
+.stocks { grid-template-columns: .8fr 1.3fr 1.6fr 36px; }
+.thead { font-size: 13px; color: var(--muted); padding-bottom: 4px; }
+.row { margin-bottom: 6px; }
+input { font: inherit; color: inherit; width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+input.bad { border-color: var(--bad); background: var(--bad-bg); }
+button { font: inherit; cursor: pointer; }
+.del { border: 0; background: none; color: var(--muted); font-size: 22px; line-height: 1; padding: 4px; border-radius: 6px; }
+.del:hover { color: var(--bad); }
+.add { border: 1px dashed var(--line); background: none; color: var(--text); border-radius: 6px; padding: 7px 12px; margin-top: 2px; }
+.hint { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.qnote { font-size: 13px; font-weight: 600; color: var(--stock-c); }
+.settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.settings label { font-size: 13px; color: var(--muted); display: block; }
+.settings input { margin-top: 3px; }
+.actions { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.btn { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 8px; padding: 10px 16px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; flex: 1; max-width: 260px; }
+#msg:empty, #info:empty { display: none; }
+.msg, #msg { background: var(--bad-bg); color: var(--bad); border: 1px solid var(--bad); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+.ok { background: var(--card); color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+.stats { display: flex; flex-wrap: wrap; gap: 12px 28px; }
+.stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; color: var(--muted); }
+.uses { font-size: 14px; color: var(--muted); margin-top: 8px; }
+.group h3 { margin: 0; font-size: 15px; display: flex; gap: 8px; align-items: baseline; }
+.group h3 .pct { margin-left: auto; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bar { position: relative; height: 42px; background: var(--waste); border: 1px solid var(--ink); border-radius: 3px; margin: 8px 0; overflow: hidden; }
+.seg { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; white-space: nowrap; font-size: 12px; color: #1d252c; border-right: 1px solid var(--ink); }
+.seg.head { background: repeating-linear-gradient(135deg, #9aa3ab 0 4px, #b9c0c6 4px 8px); z-index: 1; border-left: 1px solid var(--ink); }
+.alarm li.xtra { display: none; }
+.alarm.showall li.xtra { display: list-item; }
+.alarm .showmore { background: none; border: 1px solid #fff; color: #fff; border-radius: 6px; padding: 4px 10px; margin: 0 0 10px; font-size: 14px; }
+.alarm.showall .showmore { display: none; }
+.seg.rest { background: var(--stock); color: var(--stock-text); font-style: italic; border-right: 0; }
+.list { margin: 0; padding-left: 18px; font-size: 14px; }
+.list .lab { color: var(--muted); }
+.stale-note { display: none; }
+#out.stale .stale-note { display: block; }
+#out.stale > :not(.stale-note) { opacity: .45; }
+.print-only { display: none; }
+.alarm { background: #c0392b; color: #fff; border: 4px solid #7a1d12; border-radius: 12px; padding: 16px 18px; margin: 0 0 14px; font-size: 17px; box-shadow: 0 4px 16px rgba(192,57,43,.35); animation: alarmIn .5s ease-out 2; }
+.alarm .ah { font-size: 28px; font-weight: 800; letter-spacing: .5px; line-height: 1.15; margin-bottom: 6px; }
+.alarm .big { font-size: 21px; font-weight: 700; margin: 4px 0 8px; }
+.alarm ul { margin: 6px 0 10px; padding-left: 22px; font-size: 18px; font-weight: 600; }
+.alarm .lab { color: #ffd9d3; font-weight: 400; }
+.alarm .fix { background: #fff; color: #7a1d12; border-radius: 8px; padding: 10px 12px; margin: 8px 0; font-size: 17px; }
+.alarm .fix b { color: #c0392b; }
+.alarm .note { font-size: 14px; opacity: .92; }
+@keyframes alarmIn { 0%, 100% { transform: none; } 30% { transform: scale(1.02); } }
+.stat.bad b, .stat.bad span { color: var(--bad); }
+.gap { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; font-size: 14px; }
+footer { max-width: 860px; margin: 0 auto; padding: 4px 14px 20px; font-size: 12px; color: var(--muted); }
+@media (max-width: 560px) {
+  main { padding: 8px; }
+  .parts, .stocks { grid-template-columns: .7fr 1.2fr 1.3fr 32px; gap: 5px; }
+  input { padding: 8px 6px; font-size: 16px; }
+  .settings { grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+  .settings label { font-size: 12px; }
+}
+@media print {
+  :root { --bg: #fff; --card: #fff; --text: #000; --muted: #333; --line: #999; --waste: #ccc; --stock: #e6c88f; --stock-text: #4a3510; color-scheme: light; }
+  header, .no-print, footer, #msg, #info { display: none !important; }
+  .print-only { display: block; }
+  main { max-width: none; padding: 0; }
+  .card { border: 0; padding: 4px 0; break-inside: avoid; }
+  .seg, .alarm, .alarm .fix { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .alarm { animation: none; box-shadow: none; }
+  .alarm li.xtra { display: list-item !important; }
+  .alarm .showmore { display: none !important; }
+  .bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #out.stale > :not(.stale-note) { opacity: 1; }
+  .inputs { display: flex !important; gap: 24px; align-items: flex-start; flex-wrap: wrap; margin: 6px 0 12px; break-inside: avoid; }
+  .inputs h3 { font-size: 13pt; margin: 0 0 4px; }
+  .inputs table { border-collapse: collapse; font-size: 10pt; }
+  .inputs th, .inputs td { border: 1px solid #999; padding: 3px 8px; text-align: left; }
+  .inputs td.n, .inputs th.n { text-align: right; }
+  .inputs tfoot td { font-weight: 600; }
+  .group { break-inside: avoid; }
+}
+</style>
+</head>
+<body>
+<header><h1>Boy Kesim</h1></header>
+<main>
+  <section class="card partbox no-print">
+    <h2><span class="chip p" aria-hidden="true"></span>Kesilecek parçalar</h2>
+    <div class="thead parts"><span>Adet</span><span>Uzunluk (mm)</span><span>Etiket</span><span></span></div>
+    <div id="parts"></div>
+    <button type="button" class="add" id="addPart">+ Parça ekle</button>
+  </section>
+
+  <section class="card stockbox no-print">
+    <h2><span class="chip s" aria-hidden="true"></span>Stok boylar (elinizdeki malzeme)</h2>
+    <div class="thead stocks"><span>Adet</span><span>Uzunluk (mm)</span><span></span><span></span></div>
+    <div id="stocks"></div>
+    <button type="button" class="add" id="addStock">+ Stok boy ekle</button>
+    <p class="hint">Adet: elinizdeki boy sayısı. Elinizde sınırsız varsa <b>0</b> yazın. Adet boş bırakılamaz.</p>
+  </section>
+
+  <details class="card setbox no-print" id="setbox">
+    <summary>Ayarlar <span id="setSum"></span></summary>
+    <div class="settings">
+      <div><label for="kerf">Testere payı (mm)</label><input id="kerf" data-s="kerf" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num></div>
+      <div><label for="head">Baş kafa payı (mm)</label><input id="head" data-s="head" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num></div>
+      <div><label for="tail">Son kafa payı (mm)</label><input id="tail" data-s="tail" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num></div>
+    </div>
+    <p class="hint" style="padding:0 14px 12px;margin:0">Kafa payı: boyun ucundan atılan kısım (çapak, ezik, kusurlu uç). Onu kesip ayırmak için ayrıca bir testere payı düşülür; yani 10 mm kafa payı + 3 mm testere = uçtan 13 mm gider.</p>
+  </details>
+
+  <div class="actions no-print">
+    <button type="button" class="btn primary" id="calc">Hesapla</button>
+    <button type="button" class="btn" id="print">Yazdır</button>
+    <button type="button" class="btn" id="reset">Temizle</button>
+  </div>
+  <div id="msg" role="alert"></div>
+  <div id="info" role="status"></div>
+  <div id="out"></div>
+</main>
+
+<script>
+// ===== ÇÖZÜCÜ (arayüzden bağımsız) =====
+// parts: [{len, qty, label}]  stocks: [{len, qty}] (qty: Infinity = sınırsız)  opt: {kerf, head, tail}  — hepsi mm
+// Öncelik sırası: 1) en çok parça yerleşsin  2) eşitse en çok toplam parça uzunluğu kesilsin  3) en az toplam stok uzunluğu  4) en az boy sayısı
+// Kafa payı: boyun ucundan atılan kısım; onu ayırmak için ayrıca bir testere payı düşülür.
+function solveCuts(parts, stocks, opt, budgetMs = 1500) {
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+  const t0 = now(), deadline = t0 + budgetMs;
+  let lpDeadline = 0;
+  const I = x => Math.round(x * 100); // 0,01 mm hassasiyetle tam sayı
+  const kerf = I(opt.kerf || 0), head = I(opt.head || 0), tail = I(opt.tail || 0);
+  const trim = head + tail + (head > 0 ? kerf : 0) + (tail > 0 ? kerf : 0);
+  const st = stocks.map((s, i) => ({ i, L: I(s.len), U: I(s.len) - trim, qty: s.qty })).filter(s => s.U > 0);
+
+  const byLen = new Map();
+  for (const p of parts) {
+    const L = I(p.len);
+    if (!byLen.has(L)) byLen.set(L, { len: L, qty: 0, labels: [] });
+    const g = byLen.get(L); g.qty += p.qty; g.labels.push({ label: p.label || '', n: p.qty });
+  }
+  const all = [...byLen.values()].sort((a, b) => b.len - a.len);
+  const maxU = st.reduce((m, s) => Math.max(m, s.U), 0);
+  const maxL = st.reduce((m, s) => Math.max(m, s.L), 0);
+  const tooLong = all.filter(t => t.len > maxU);
+  const types = all.filter(t => t.len <= maxU);
+  const T = types.length;
+  const cost = types.map(t => t.len + kerf);
+  const demand = types.map(t => t.qty);
+
+  // Sınırlı sırt çantası: değer toplamı en büyük, sum(cost*k) <= C, k_j <= lim_j. exact=false ise düğüm sınırına takıldı.
+  function pack(val, lim, C, nodeLimit = 30000) {
+    const act = [];
+    for (let j = 0; j < T; j++) if (lim[j] > 0 && val[j] > 0 && cost[j] <= C) act.push(j);
+    if (!act.length) return null;
+    act.sort((a, b) => val[b] / cost[b] - val[a] / cost[a] || cost[b] - cost[a]);
+    const n = act.length, cur = new Array(n).fill(0), dens = act.map(j => val[j] / cost[j]);
+    const sfx = new Array(n + 1).fill(0);
+    for (let a = n - 1; a >= 0; a--) sfx[a] = sfx[a + 1] + lim[act[a]] * val[act[a]];
+    let best = 0, bestCur = null, nodes = 0;
+    const eps = 1e-9 * (1 + sfx[0]);
+    (function dfs(a, room, v) {
+      if (v > best + eps) { best = v; bestCur = cur.slice(); }
+      if (a === n || nodes++ > nodeLimit) return;
+      if (v + Math.min(sfx[a], room * dens[a]) <= best + eps) return;
+      const j = act[a], maxk = Math.min(lim[j], Math.floor(room / cost[j]));
+      for (let k = maxk; k >= 0; k--) {
+        cur[a] = k; dfs(a + 1, room - k * cost[j], v + k * val[j]);
+        if (nodes > nodeLimit) break;
+      }
+      cur[a] = 0;
+    })(0, C, 0);
+    if (!bestCur) return null;
+    const pick = new Array(T).fill(0);
+    act.forEach((j, a) => pick[j] = bestCur[a]);
+    return { pick, val: best, exact: nodes <= nodeLimit };
+  }
+
+  // Açgözlü kurulum: her adımda bir boy için en iyi diziliş, tekrar edebildiği kadar
+  const W = maxL + 1;
+  const valLen = cost, valCount = cost.map(c => W + c);
+  // soft=true: süre dolunca aday bırakılmaz, hızlı (kaba) aramayla tamamlanır — her zaman bir plan çıksın diye
+  function greedy(cnt0, avail0, mode, allow, until = Infinity, soft = false) {
+    const cnt = cnt0.slice(), avail = avail0.slice(), groups = [];
+    const ks = allow || st.map((_, k) => k);
+    let nodeLimit = 30000;
+    for (let guard = 0; cnt.some(c => c > 0) && guard < 1e5; guard++) {
+      if (now() > until) { if (!soft) return null; nodeLimit = 1000; } // süre doldu
+      let best = null;
+      const first = cnt.findIndex(c => c > 0);
+      for (const k of ks) {
+        if (!(avail[k] > 0)) continue;
+        const C = st[k].U + kerf;
+        let lim = cnt, room = C, pre = -1;
+        if (mode === 'force' && cost[first] <= C) { lim = cnt.slice(); lim[first]--; room = C - cost[first]; pre = first; }
+        const r = pack(mode === 'count' ? valCount : valLen, lim, room, nodeLimit);
+        let pick;
+        if (r) pick = r.pick; else if (pre >= 0) pick = new Array(T).fill(0); else continue;
+        if (pre >= 0) pick[pre]++;
+        let sum = 0, n = 0;
+        pick.forEach((q, j) => { sum += q * types[j].len; n += q; });
+        const util = sum / st[k].L;
+        const score = mode === 'count' ? n + util * 0.999 : util;
+        if (!best || score > best.score + 1e-12 || (Math.abs(score - best.score) <= 1e-12 && sum > best.sum)) best = { k, pick, score, sum };
+      }
+      if (!best) break;
+      let times = avail[best.k];
+      best.pick.forEach((q, j) => { if (q > 0) times = Math.min(times, Math.floor(cnt[j] / q)); });
+      best.pick.forEach((q, j) => cnt[j] -= q * times);
+      avail[best.k] -= times;
+      groups.push({ k: best.k, pick: best.pick, times });
+    }
+    return { groups, cnt, avail };
+  }
+
+  // Doğrusal gevşetme (sütun üretimi, revize simpleks). Kesilemeyen her parça P cezası taşır.
+  function lp() {
+    const limRow = new Map();
+    let r = 0;
+    st.forEach((s, k) => { if (Number.isFinite(s.qty)) limRow.set(k, T + r++); });
+    const n = T + r, P = 2 * maxL;
+    const b = new Float64Array(n);
+    demand.forEach((d, j) => b[j] = d);
+    limRow.forEach((row, k) => b[row] = st[k].qty);
+    const Binv = Array.from({ length: n }, (_, i) => { const a = new Float64Array(n); a[i] = 1; return a; });
+    const basis = Array.from({ length: n }, (_, i) => i < T ? { kind: 'art', c: P, nz: [[i, 1]] } : { kind: 'slack', c: 0, nz: [[i, 1]] });
+    let xB = Float64Array.from(b);
+    const y = new Float64Array(n), d = new Float64Array(n), val = new Array(T);
+    const tol = 1e-7 * maxL;
+    let converged = false;
+    for (let it = 1; it < 50000 && now() < lpDeadline; it++) {
+      y.fill(0);
+      for (let k = 0; k < n; k++) { const c = basis[k].c; if (!c) continue; const R = Binv[k]; for (let i = 0; i < n; i++) y[i] += c * R[i]; }
+      let enter = null, bestRc = -tol, exact = true;
+      for (let j = 0; j < T; j++) { const rc = P - y[j]; if (rc < bestRc) { bestRc = rc; enter = { kind: 'art', c: P, nz: [[j, 1]] }; } }
+      limRow.forEach(row => { const rc = -y[row]; if (rc < bestRc) { bestRc = rc; enter = { kind: 'slack', c: 0, nz: [[row, 1]] }; } });
+      for (let j = 0; j < T; j++) val[j] = y[j];
+      for (let k = 0; k < st.length; k++) {
+        const pr = pack(val, demand, st[k].U + kerf, 20000);
+        if (!pr) continue;
+        if (!pr.exact) exact = false;
+        const row = limRow.get(k);
+        const rc = st[k].L - pr.val - (row !== undefined ? y[row] : 0);
+        if (rc < bestRc) {
+          bestRc = rc;
+          const nz = [];
+          pr.pick.forEach((q, j) => { if (q) nz.push([j, q]); });
+          if (row !== undefined) nz.push([row, 1]);
+          enter = { kind: 'pat', c: st[k].L, k, pick: pr.pick, nz };
+        }
+      }
+      if (!enter) { converged = exact; break; }
+      for (let i = 0; i < n; i++) { const R = Binv[i]; let s = 0; for (const [q, v] of enter.nz) s += R[q] * v; d[i] = s; }
+      let p = -1, th = Infinity;
+      for (let i = 0; i < n; i++) if (d[i] > 1e-9) { const t = xB[i] / d[i]; if (t < th - 1e-12) { th = t; p = i; } }
+      if (p < 0) break;
+      const Rp = Binv[p], dp = d[p];
+      for (let q = 0; q < n; q++) Rp[q] /= dp;
+      for (let i = 0; i < n; i++) {
+        if (i === p || d[i] === 0) continue;
+        const f = d[i], R = Binv[i];
+        for (let q = 0; q < n; q++) R[q] -= f * Rp[q];
+        xB[i] -= f * th;
+      }
+      xB[p] = th;
+      basis[p] = enter;
+      if (it % 40 === 0) { // birikmiş yuvarlama hatasını temizle
+        for (let i = 0; i < n; i++) { const R = Binv[i]; let s = 0; for (let q = 0; q < n; q++) s += R[q] * b[q]; xB[i] = Math.abs(s) < 1e-9 ? 0 : s; }
+      }
+      for (let i = 0; i < n; i++) if (xB[i] < 0 && xB[i] > -1e-7) xB[i] = 0;
+    }
+    let obj = 0, art = false;
+    basis.forEach((c, i) => { obj += c.c * xB[i]; if (c.kind === 'art' && xB[i] > 1e-6) art = true; });
+    const pats = basis.map((c, i) => ({ c, x: xB[i] })).filter(o => o.c.kind === 'pat' && o.x > 1e-9).sort((a, b) => b.x - a.x);
+    return { pats, obj, converged, art };
+  }
+
+  // Kesin arama (dal-sınır): küçük işler ve LP sonrası kalan parçalar için. ub'den iyisini bulursa döndürür.
+  const ratio = st.reduce((m, s) => Math.min(m, s.L / (s.U + kerf)), Infinity);
+  function exactSearch(cnt0, avail0, ub, until, nodeCap = 400000) {
+    const items = [];
+    cnt0.forEach((c, j) => { for (let q = 0; q < c; q++) items.push(j); }); // types uzundan kısaya sıralı
+    const N = items.length;
+    const rest = new Array(N + 1).fill(0);
+    for (let i = N - 1; i >= 0; i--) rest[i] = rest[i + 1] + cost[items[i]];
+    const avail = avail0.slice(), bars = [];
+    // Sıra: en az kalan parça → en az kalan uzunluk (aynı sayıda parça sığıyorsa daha çok malzeme kesilsin) → en az stok uzunluğu
+    let best = { left: ub.left, ul: ub.ul, len: ub.len }, bestBars = null, nodes = 0, stop = false;
+    (function rec(i, left, ul, len) {
+      if (stop) return;
+      if (++nodes > nodeCap || (nodes & 1023) === 0 && now() > until) { stop = true; return; }
+      if (left > best.left) return;
+      if (left === best.left && ul > best.ul) return;
+      let free = 0;
+      for (const b of bars) free += b.free;
+      const need = Math.max(0, rest[i] - free) * ratio;
+      if (left === best.left && ul === best.ul && len + need >= best.len - 1e-6) return;
+      if (i === N) { best = { left, ul, len }; bestBars = bars.map(b => ({ k: b.k, pick: b.pick.slice() })); return; }
+      const j = items[i], c = cost[j];
+      const seen = new Set();
+      for (const b of bars) {
+        if (b.free < c) continue;
+        const key = b.k + ':' + b.free;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        b.free -= c; b.pick[j]++;
+        rec(i + 1, left, ul, len);
+        b.free += c; b.pick[j]--;
+        if (stop) return;
+      }
+      const seenL = new Set();
+      for (let k = 0; k < st.length; k++) {
+        const C = st[k].U + kerf;
+        if (!(avail[k] > 0) || C < c || seenL.has(st[k].L + ':' + C)) continue;
+        seenL.add(st[k].L + ':' + C);
+        avail[k]--;
+        const pick = new Array(T).fill(0); pick[j] = 1;
+        bars.push({ k, free: C - c, pick });
+        rec(i + 1, left, ul, len + st[k].L);
+        bars.pop(); avail[k]++;
+        if (stop) return;
+      }
+      rec(i + 1, left + 1, ul + types[j].len, len); // bu parça yerleşmesin
+    })(0, 0, 0, 0);
+    if (!bestBars) return { complete: !stop };
+    const cnt = cnt0.slice();
+    bestBars.forEach(b => b.pick.forEach((q, j) => cnt[j] -= q));
+    return { groups: bestBars.map(b => ({ k: b.k, pick: b.pick, times: 1 })), cnt, complete: !stop };
+  }
+  const EXACT_MAX = 60;
+
+  // Aday planları karşılaştır
+  const summarize = (groups, cnt) => {
+    const merged = new Map();
+    for (const g of groups) {
+      const key = g.k + ':' + g.pick.join(',');
+      if (merged.has(key)) merged.get(key).times += g.times; else merged.set(key, { ...g });
+    }
+    const gs = [...merged.values()].filter(g => g.times > 0);
+    return {
+      groups: gs, cnt,
+      left: cnt.reduce((a, c) => a + c, 0),
+      ul: cnt.reduce((a, c, j) => a + c * types[j].len, 0), // kesilemeyen toplam uzunluk
+      stockLen: gs.reduce((a, g) => a + st[g.k].L * g.times, 0),
+      bars: gs.reduce((a, g) => a + g.times, 0),
+    };
+  };
+  const better = (a, b) => a.left < b.left || (a.left === b.left && (a.ul < b.ul || (a.ul === b.ul && (a.stockLen < b.stockLen || (a.stockLen === b.stockLen && a.bars < b.bars)))));
+  let res = null;
+  const consider = (groups, cnt) => { const c = summarize(groups, cnt); if (!res || better(c, res)) res = c; };
+  const avail0 = st.map(s => s.qty);
+
+  // Stok sınırlı değilse "en çok parça" modu gereksiz
+  const modes = st.some(s => Number.isFinite(s.qty)) ? ['util', 'force', 'count'] : ['util', 'force'];
+  const tryGreedy = (pre, cnt, avail, m, allow, until, soft) => {
+    const g = greedy(cnt, avail, m, allow, until, soft);
+    if (g) consider([...pre, ...g.groups], g.cnt);
+    return g;
+  };
+  tryGreedy([], demand, avail0, 'util', null, t0 + budgetMs * 0.3, true); // her zaman tamamlanan temel plan
+  // Stok yetmiyorsa hızlı "en çok parça" adayı: boyları en kısa parçalardan başlayarak doldur
+  if (res.left > 0 && modes.includes('count')) {
+    const cnt = demand.slice(), avail = avail0.slice(), groups = [];
+    const order = st.map((_, k) => k).sort((a, b) => st[b].U - st[a].U);
+    for (const k of order) {
+      const C = st[k].U + kerf;
+      while (avail[k] > 0) {
+        const pick = new Array(T).fill(0);
+        let room = C, any = false;
+        for (let j = T - 1; j >= 0; j--) { // types uzundan kısaya: sondan başla
+          if (!cnt[j] || cost[j] > room) continue;
+          const q = Math.min(cnt[j], Math.floor(room / cost[j]));
+          pick[j] = q; cnt[j] -= q; room -= q * cost[j]; any = true;
+          if (cnt[j] > 0) break; // bu boy sığmadıysa daha uzunları da sığmaz
+        }
+        if (!any) break;
+        avail[k]--; groups.push({ k, pick, times: 1 });
+      }
+    }
+    consider(groups, cnt);
+  }
+  let lpr = null;
+  if (T && st.length) {
+    lpDeadline = now() + budgetMs * 0.5;
+    lpr = lp();
+    // LP çözümünü aşağı yuvarla, kalanı açgözlü tamamla
+    const cnt = demand.slice(), avail = avail0.slice(), groups = [];
+    for (const { c, x } of lpr.pats) {
+      let times = Math.min(Math.floor(x + 1e-6), avail[c.k]);
+      c.pick.forEach((q, j) => { if (q > 0) times = Math.min(times, Math.floor(cnt[j] / q)); });
+      if (times > 0) { c.pick.forEach((q, j) => cnt[j] -= q * times); avail[c.k] -= times; groups.push({ k: c.k, pick: c.pick, times }); }
+    }
+    let rb = null;
+    for (const m of modes) {
+      const g = tryGreedy(groups, cnt, avail, m, null, deadline, m === 'util');
+      if (!g) continue;
+      const s = summarize(g.groups, g.cnt);
+      if (!rb || better(s, rb)) rb = s;
+    }
+    // LP'den artan parçaları kesin aramayla yerleştir
+    const restN = cnt.reduce((a, c) => a + c, 0);
+    if (restN > 0 && restN <= EXACT_MAX) {
+      const e = exactSearch(cnt, avail, { left: rb.left, ul: rb.ul, len: rb.stockLen }, Math.min(deadline, now() + budgetMs * 0.25));
+      if (e.groups) consider([...groups, ...e.groups], e.cnt);
+    }
+  }
+  for (const m of modes.slice(1)) if (now() < deadline) tryGreedy([], demand, avail0, m, null, deadline);
+  let proven = false;
+  // Küçük işlerde bütün işi kesin arama ile dene
+  const totalN = demand.reduce((a, c) => a + c, 0);
+  if (totalN > 0 && totalN <= EXACT_MAX && now() < deadline) {
+    const e = exactSearch(demand, avail0, { left: res.left, ul: res.ul, len: res.stockLen }, deadline);
+    if (e.groups) consider(e.groups, e.cnt);
+    if (e.complete) proven = true; // tüm olasılıklar tarandı: bu plan kesin en iyi
+  }
+  // Her stok boyunu tek başına dene (karışık kullanım her zaman iyi değildir)
+  if (st.length > 1) for (let k = 0; k < st.length && now() < deadline; k++) {
+    for (const m of ['util', 'force']) tryGreedy([], demand, avail0, m, [k], deadline);
+  }
+
+  // Etiketleri parçalara dağıt
+  const queues = new Map(all.map(t => [t.len, t.labels.map(x => ({ ...x }))]));
+  const take = (len, n) => {
+    const q = queues.get(len), out = new Map();
+    while (n > 0 && q.length) {
+      const h = q[0], k = Math.min(n, h.n);
+      out.set(h.label, (out.get(h.label) || 0) + k);
+      h.n -= k; n -= k; if (!h.n) q.shift();
+    }
+    return [...out];
+  };
+  const mm = x => x / 100;
+  const groups = res.groups.map(g => {
+    const s = st[g.k];
+    const items = [];
+    let sum = 0, count = 0;
+    g.pick.forEach((n, j) => { if (n > 0) { items.push({ len: mm(types[j].len), n, labels: take(types[j].len, n * g.times) }); sum += n * types[j].len; count += n; } });
+    const r = s.U - sum - (count - 1) * kerf;
+    const rest = r > kerf ? r - kerf : 0;
+    return { stock: s.i, stockLen: mm(s.L), times: g.times, items, used: mm(sum), rest: mm(rest), count };
+  });
+  groups.sort((a, b) => b.used / b.stockLen - a.used / a.stockLen);
+
+  const unplaced = [];
+  for (const t of tooLong) unplaced.push({ len: mm(t.len), n: t.qty, labels: take(t.len, t.qty), reason: 'long', need: mm(t.len + trim) });
+  res.cnt.forEach((c, j) => { if (c > 0) unplaced.push({ len: mm(types[j].len), n: c, labels: take(types[j].len, c), reason: 'stock' }); });
+
+  // Alt sınırlar: tek ölçüde boy sayısı, her durumda toplam stok uzunluğu (LP kesin çözüldüyse)
+  let lowerBound = null, lowerLen = null;
+  if (!unplaced.length && T) {
+    if (lpr && lpr.converged && !lpr.art) lowerLen = Math.ceil(mm(lpr.obj) - 1e-6);
+    if (new Set(st.map(s => s.L)).size === 1) {
+      const C = st[0].U + kerf;
+      const total = types.reduce((a, t, j) => a + cost[j] * t.qty, 0);
+      lowerBound = Math.ceil(total / C - 1e-9);
+      if (lowerLen !== null) lowerBound = Math.max(lowerBound, Math.ceil(lowerLen / mm(st[0].L) - 1e-6));
+    }
+  }
+  return { groups, unplaced, bars: res.bars, stockLen: mm(res.stockLen), lowerBound, lowerLen, optimal: proven || (lowerBound !== null && res.bars === lowerBound && !unplaced.length && new Set(st.map(s => s.L)).size === 1), ms: Math.round(now() - t0) };
+}
+// ===== ÇÖZÜCÜ SONU =====
+
+const $ = s => document.querySelector(s);
+const KEY = 'boykesim.v1';
+const COLORS = ['#8ec5e0', '#b3d4f5', '#7fc0c4', '#a7b8ee', '#9fdad6', '#6fb0d4', '#c3cdf3', '#8fd0e8'];
+const MAX_LEN = 1e6, MAX_QTY = 9999, MAX_TOTAL = 20000;
+const MAX_ROWS = { parts: 500, stocks: 50 };
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmt = v => (Math.round(v * 100) / 100).toString().replace('.', ',');
+const str = v => (typeof v === 'string' || typeof v === 'number') ? String(v).slice(0, 60) : '';
+
+const defaults = () => ({ parts: [{ len: '', qty: '', label: '' }], stocks: [{ len: '', qty: '' }], kerf: '3', head: '0', tail: '0' });
+function load() {
+  try {
+    const d = JSON.parse(localStorage.getItem(KEY));
+    if (d && Array.isArray(d.parts) && Array.isArray(d.stocks)) {
+      const o = {
+        parts: d.parts.slice(0, MAX_ROWS.parts).map(p => ({ len: str(p?.len), qty: str(p?.qty ?? '1'), label: str(p?.label) })),
+        stocks: d.stocks.slice(0, MAX_ROWS.stocks).map(s => ({ len: str(s?.len), qty: str(s?.qty) })),
+        kerf: str(d.kerf ?? '3'), head: str(d.head ?? '0'), tail: str(d.tail ?? '0'),
+      };
+      if (!o.parts.length) o.parts = defaults().parts;
+      if (!o.stocks.length) o.stocks = defaults().stocks;
+      return o;
+    }
+  } catch {}
+  return defaults();
+}
+let S = load();
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+
+// Stok adedi 0 ise satırın yanında "sınırsız" yazar (0'ın "yok" sanılmasına karşı görünür uyarı)
+const qnote = q => /^0+$/.test(String(q).trim()) ? '∞ sınırsız' : '';
+function render() {
+  $('#parts').innerHTML = S.parts.map((p, i) => `<div class="row parts" data-i="${i}">
+    <input data-f="qty" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num value="${esc(p.qty)}" placeholder="adet" aria-label="Parça ${i + 1} adet">
+    <input data-f="len" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num value="${esc(p.len)}" placeholder="ör. 1250" aria-label="Parça ${i + 1} uzunluk">
+    <input data-f="label" maxlength="60" value="${esc(p.label)}" placeholder="isteğe bağlı" aria-label="Parça ${i + 1} etiket">
+    <button type="button" class="del" data-del="${i}" aria-label="Parça ${i + 1} sil">×</button></div>`).join('');
+  $('#stocks').innerHTML = S.stocks.map((s, i) => `<div class="row stocks" data-i="${i}">
+    <input data-f="qty" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num value="${esc(s.qty)}" placeholder="0 = ∞" aria-label="Stok ${i + 1} adet">
+    <input data-f="len" inputmode="numeric" pattern="[0-9]*" autocomplete="off" data-num value="${esc(s.len)}" placeholder="ör. 6000" aria-label="Stok ${i + 1} uzunluk">
+    <span class="qnote" aria-live="polite">${qnote(s.qty)}</span>
+    <button type="button" class="del" data-del="${i}" aria-label="Stok ${i + 1} sil">×</button></div>`).join('');
+  ['kerf', 'head', 'tail'].forEach(k => $('#' + k).value = S[k]);
+  setSummary();
+}
+function setSummary() {
+  const v = k => S[k].trim() || '0';
+  $('#setSum').textContent = `testere ${S.kerf.trim() ? S.kerf.trim() + ' mm' : 'BOŞ'} · kafa ${v('head')} / ${v('tail')} mm`;
+}
+
+let lastSig = null;
+const sig = () => JSON.stringify(S);
+function edited() {
+  save();
+  if (lastSig !== null) $('#out').classList.toggle('stale', sig() !== lastSig);
+}
+
+function bindList(id, key, blank) {
+  const box = $(id);
+  box.addEventListener('input', e => {
+    const el = e.target, row = el.closest('[data-i]'); if (!row || !el.dataset.f) return;
+    S[key][+row.dataset.i][el.dataset.f] = el.value;
+    if (key === 'stocks' && el.dataset.f === 'qty') { const n = row.querySelector('.qnote'); if (n) n.textContent = qnote(el.value); }
+    el.classList.remove('bad'); edited();
+  });
+  box.addEventListener('click', e => {
+    const d = e.target.closest('[data-del]'); if (!d) return;
+    const i = +d.dataset.del;
+    if (S[key].length > 1) S[key].splice(i, 1); else S[key][0] = blank();
+    render(); edited();
+    const rows = box.querySelectorAll('.row');
+    rows[Math.min(i, rows.length - 1)]?.querySelector('input')?.focus();
+  });
+  box.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    const ins = [...box.querySelectorAll('input')], i = ins.indexOf(e.target);
+    if (i < ins.length - 1) { ins[i + 1].focus(); ins[i + 1].select(); }
+    else addRow(key, blank);
+  });
+}
+function addRow(key, blank) {
+  if (S[key].length >= MAX_ROWS[key]) { hintOnce(null, `En çok ${MAX_ROWS[key]} ${key === 'parts' ? 'parça' : 'stok'} satırı eklenebilir. Aynı uzunluktaki satırları adetle birleştirin.`); return; }
+  S[key].push(blank()); render(); edited();
+  const rows = document.querySelectorAll(key === 'parts' ? '#parts .row' : '#stocks .row');
+  const first = rows[rows.length - 1].querySelector('input'); first.focus(); first.select();
+}
+const blankPart = () => ({ len: '', qty: '', label: '' });
+const blankStock = () => ({ len: '', qty: '' });
+bindList('#parts', 'parts', blankPart);
+bindList('#stocks', 'stocks', blankStock);
+$('#addPart').onclick = () => addRow('parts', blankPart);
+$('#addStock').onclick = () => addRow('stocks', blankStock);
+document.querySelector('.settings').addEventListener('input', e => {
+  const k = e.target.dataset.s; if (!k) return;
+  S[k] = e.target.value; e.target.classList.remove('bad'); setSummary(); edited();
+});
+
+// Sayı kutularına yalnızca rakam yazılabilir (nokta, virgül, eksi engellenir)
+document.addEventListener('beforeinput', e => {
+  const el = e.target;
+  if (!el.matches?.('input[data-num]') || e.isComposing) return;
+  if (e.inputType?.startsWith('delete')) { delete el.dataset.cut; return; }
+  if (e.data == null) return;
+  // Kilit yalnızca virgülden hemen sonra sona yazılan rakamlar için: seçip üzerine yazma, başka yere yazma serbest
+  if ('cut' in el.dataset && (el.value !== el.dataset.cut || el.selectionStart !== el.selectionEnd || el.selectionStart !== el.value.length)) delete el.dataset.cut;
+  // Ayırıcıdan sonra gelen rakamlar da alınmaz: "1250,5" yazılırsa 12505 değil 1250 kalır
+  if (/\D/.test(e.data) || 'cut' in el.dataset) {
+    e.preventDefault();
+    if (/[.,]/.test(e.data)) el.dataset.cut = el.value;
+    hintOnce(el, 'cut' in el.dataset ? `Ondalık girilmez; ${el.value || 'değer'} mm olarak alındı. Değiştirmek için seçip üzerine yazın ya da silin.` : undefined);
+  }
+});
+document.addEventListener('focusout', e => { if (e.target.dataset) delete e.target.dataset.cut; });
+document.addEventListener('paste', e => {
+  const el = e.target;
+  if (!el.matches?.('input[data-num]')) return;
+  const t = (e.clipboardData?.getData('text') || '').trim();
+  if (/\s/.test(t)) { e.preventDefault(); hintOnce(el, `Yapıştırılan “${t.slice(0, 20)}” içinde boşluk var; alınmadı. Sayıyı boşluksuz yazın.`); }
+  else if (!/^\d*$/.test(t)) { e.preventDefault(); hintOnce(el, `Yapıştırılan “${t.slice(0, 20)}” tam sayı değil. Ölçüler mm, tam sayı olmalı.`); }
+});
+let hintTimer = null;
+function hintOnce(el, text = 'Yalnızca tam sayı girilebilir (mm). Nokta ve virgül kullanılmaz.') {
+  $('#info').textContent = text;
+  clearTimeout(hintTimer); hintTimer = setTimeout(() => $('#info').textContent = '', 3500);
+}
+
+// Sayı okuma: yalnızca tam sayı (mm). Eski kayıtlardan gelen ondalıklar da reddedilir.
+const spaceErr = s => ({ error: `“${s}” geçersiz: sayının içinde boşluk var, alınmadı. Boşluksuz yazın (ör. ${s.replace(/\s/g, '')}).` });
+function readNum(raw) {
+  const s = String(raw).trim();
+  if (!s) return { empty: true };
+  if (/\s/.test(s)) return spaceErr(s);
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return { error: `“${s}” geçersiz: binlik ayırıcı kullanmayın, ${s.replace(/\./g, '')} yazın.` };
+  if (/^-/.test(s)) return { error: `“${s}” eksi olamaz.` };
+  if (/^\d*[.,]\d*$/.test(s) && /\d/.test(s)) return { error: `“${s}” geçersiz: ölçüler mm cinsinden tam sayı olmalı, ondalık girilmez.` };
+  if (!/^\d+$/.test(s)) return { error: `“${s}” sayı olarak okunamadı.` };
+  const v = +s;
+  if (v > MAX_LEN) return { error: `“${s}” çok büyük.` };
+  return { value: v };
+}
+// zeroInf: stok adedinde 0 = sınırsız
+function readInt(raw, zeroInf = false) {
+  const s = String(raw).trim();
+  if (!s) return { empty: true };
+  if (/\s/.test(s)) return spaceErr(s);
+  if (!/^\d+$/.test(s)) return { error: `Adet tam sayı olmalı (“${s}” yazılı).` };
+  const v = +s;
+  if (v === 0 && zeroInf) return { value: Infinity };
+  if (v < 1) return { error: 'Adet en az 1 olmalı.' };
+  if (v > MAX_QTY) return { error: `Adet en çok ${MAX_QTY} olabilir.` };
+  return { value: v };
+}
+
+function fail(el, text) {
+  $('#msg').textContent = text;
+  if (el) { el.classList.add('bad'); el.focus(); el.scrollIntoView?.({ block: 'center' }); }
+  return null;
+}
+function collect() {
+  document.querySelectorAll('input.bad').forEach(el => el.classList.remove('bad'));
+  $('#msg').textContent = ''; $('#info').textContent = '';
+  const cell = (box, i, f) => $(`${box} .row[data-i="${i}"] [data-f="${f}"]`);
+  const opt = {};
+  for (const [k, name] of [['kerf', 'Testere payı'], ['head', 'Baş kafa payı'], ['tail', 'Son kafa payı']]) {
+    const r = readNum(S[k]);
+    if (r.error) { $('#setbox').open = true; return fail($('#' + k), `${name}: ${r.error}`); }
+    if (r.empty && k === 'kerf') { $('#setbox').open = true; return fail($('#kerf'), 'Testere payı boş. Testere payı yoksa 0 yazın; yoksa bıçak kalınlığını girin (ör. 3).'); }
+    opt[k] = r.empty ? 0 : r.value;
+  }
+  // Satırlardaki tüm hatalar toplanır: hatalı kutuların hepsi kırmızı olur, ilki odaklanır
+  const errs = [];
+  const err = (el, text) => errs.push({ el, text });
+  const lenOf = (raw, el, name) => {
+    const l = readNum(raw);
+    if (l.empty) { err(el, `${name}: uzunluk boş. Uzunluğu mm olarak yazın ya da satırı silin.`); return null; }
+    if (l.error) { err(el, `${name}: ${l.error}`); return null; }
+    if (!(l.value > 0)) { err(el, `${name}: uzunluk sıfırdan büyük olmalı.`); return null; }
+    return l.value;
+  };
+  const parts = [];
+  for (let i = 0; i < S.parts.length; i++) {
+    const p = S.parts[i];
+    if (!p.len.trim() && !p.label.trim() && !p.qty.trim()) continue; // tamamen boş satır yok sayılır
+    const name = `Parça ${i + 1}${p.label.trim() ? ` (${p.label.trim()})` : ''}`;
+    const len = lenOf(p.len, cell('#parts', i, 'len'), name);
+    const q = readInt(p.qty);
+    const qel = cell('#parts', i, 'qty');
+    if (q.empty) err(qel, `${name}: adet boş. Bu ölçüden kaç parça kesilecekse yazın (ör. 1).`);
+    else if (q.error) err(qel, `${name}: ${q.error}`);
+    if (len !== null && q.value) parts.push({ len, qty: q.value, label: p.label.trim() });
+  }
+  const stocks = [];
+  for (let i = 0; i < S.stocks.length; i++) {
+    const s = S.stocks[i];
+    if (!s.len.trim() && !s.qty.trim()) continue; // tamamen boş satır yok sayılır
+    const name = `Stok ${i + 1}`;
+    const len = lenOf(s.len, cell('#stocks', i, 'len'), name);
+    const q = readInt(s.qty, true);
+    const qel = cell('#stocks', i, 'qty');
+    if (q.empty) err(qel, `${name}: adet boş. Elinizdeki boy sayısını yazın; sınırsız varsa 0 yazın.`);
+    else if (q.error) err(qel, `${name}: ${q.error} Sınırsız için 0 yazın.`);
+    if (len !== null && q.value) stocks.push({ len, qty: q.value, row: i });
+  }
+  if (errs.length) {
+    errs.forEach(e => e.el?.classList.add('bad'));
+    return fail(errs[0].el, errs[0].text + (errs.length > 1 ? ` (Toplam ${errs.length} hatalı kutu var; kırmızı kutuları düzeltin.)` : ''));
+  }
+  if (!parts.length) return fail(cell('#parts', 0, 'len'), 'Parça girilmedi. En az bir parçanın uzunluğunu ve adedini girin.');
+  if (!stocks.length) return fail(cell('#stocks', 0, 'len'), 'Stok girilmedi. En az bir stok boyun uzunluğunu ve adedini girin (sınırsız için adet 0).');
+  const total = parts.reduce((a, p) => a + p.qty, 0);
+  if (total > MAX_TOTAL) return fail(null, `Toplam ${total} parça var; bir hesapta en çok ${MAX_TOTAL} parça olabilir.`);
+  const trim = opt.head + opt.tail + (opt.head > 0 ? opt.kerf : 0) + (opt.tail > 0 ? opt.kerf : 0);
+  if (stocks.every(s => s.len - trim <= 0)) { $('#setbox').open = true; return fail($('#head'), `Kafa payları ve onları kesmek için gereken testere payları (toplam ${trim} mm) düşülünce stok boylarda kesilecek uzunluk kalmıyor.`); }
+  return { parts, stocks, opt };
+}
+
+// times > 1: aynı kesimden birden çok boy var; etiket adetleri tek boy için değil, bu boyların toplamıdır
+function labelText(labels, times = 1) {
+  const named = labels.filter(([l]) => l);
+  if (!named.length) return '';
+  const list = named.map(([l, n]) => `${esc(l)}${times > 1 || labels.length > 1 || n > 1 ? ' ×' + n : ''}`).join(', ');
+  return ' <span class="lab">(' + (times > 1 ? `${times} boyda toplam: ` : '') + list + ')</span>';
+}
+// Uzun listelerde ilk LIST_MAX satır görünür; gerisi düğmeyle açılır (yazdırırken hepsi basılır)
+const LIST_MAX = 10;
+function alarmList(rows) {
+  const extra = rows.length - LIST_MAX;
+  const items = rows.map((r, i) => `<li${extra > 0 && i >= LIST_MAX ? ' class="xtra"' : ''}>${r}</li>`).join('');
+  return `<ul>${items}</ul>${extra > 0 ? `<button type="button" class="showmore">+${extra} ölçü daha göster</button>` : ''}`;
+}
+
+function show(input, r) {
+  const { opt } = input;
+  const colorOf = new Map();
+  [...new Set(input.parts.map(p => p.len))].sort((a, b) => b - a).forEach((l, i) => colorOf.set(l, COLORS[i % COLORS.length]));
+  const totalParts = input.parts.reduce((a, p) => a + p.qty, 0);
+  const placed = r.groups.reduce((a, g) => a + g.count * g.times, 0);
+  const used = r.groups.reduce((a, g) => a + g.used * g.times, 0);
+  const restSum = r.groups.reduce((a, g) => a + g.rest * g.times, 0);
+  const util = r.stockLen ? used / r.stockLen : 0;
+  const perStock = new Map();
+  r.groups.forEach(g => perStock.set(g.stockLen, (perStock.get(g.stockLen) || 0) + g.times));
+  const h = [];
+  h.push('<div class="msg stale-note no-print">Girişler değişti: aşağıdaki plan eski. Yeniden <b>Hesapla</b>’ya basın.</div>');
+  h.push('<h2 class="print-only" style="font-size:20px;margin:0 0 4px">Boy Kesim Planı</h2>');
+  h.push(`<p class="print-only">${esc(new Date().toLocaleDateString('tr-TR'))} · Testere payı ${fmt(opt.kerf)} mm · Baş kafa payı ${fmt(opt.head)} mm · Son kafa payı ${fmt(opt.tail)} mm${opt.head > 0 || opt.tail > 0 ? ' (kafa paylarını kesmek için ayrıca testere payı düşüldü)' : ''}</p>`);
+  const short = r.unplaced.filter(u => u.reason === 'stock'), long = r.unplaced.filter(u => u.reason === 'long');
+  if (short.length) {
+    const n = short.reduce((a, u) => a + u.n, 0);
+    const more = input.more || [];
+    const target = long.length ? 'Stok yetmediği için kesilemeyen bu parçaların çıkması için' : 'Bütün parçaların çıkması için';
+    const fix = more.length
+      ? `<div class="fix">${target} elinizdekine ek olarak <b>${more.length > 1 ? 'şunlardan biri yeter' : 'şu kadar stok gerekir'}:</b><ul style="margin:4px 0 0;font-size:17px">${more.map(m => `<li><b>${fmt(m.len)} mm</b> boydan <b>${m.n} adet daha</b></li>`).join('')}</ul></div>`
+      : `<div class="fix"><b>Stok ekleyin:</b> eksik parçalar için stok boy adedini artırın ya da adet kutusuna 0 yazıp (sınırsız) yeniden hesaplayın.</div>`;
+    h.push(`<div class="alarm" role="alert" tabindex="-1">
+      <div class="ah">⚠ STOK YETMİYOR</div>
+      <div class="big">${totalParts} parçanın ${n} tanesi elinizdeki stoktan ÇIKMIYOR.</div>
+      <div>Kesilemeyen parçalar:</div>
+      ${alarmList(short.map(u => `${u.n} × ${fmt(u.len)} mm${labelText(u.labels)}`))}
+      ${fix}
+      ${long.length ? '<div class="note" style="margin-bottom:6px"><b>Not:</b> Hiçbir stok boyuna sığmayan parçalar (aşağıdaki uyarı) bu ek stokla da çıkmaz.</div>' : ''}
+      <div class="note">Stok yetmediğinde plan, <b>olabildiğince çok sayıda</b> parça çıkacak şekilde kurulur; bu yüzden dışarıda kalanlar genellikle en uzun parçalardır. Öncelikli parçalarınız varsa önce yalnızca onlarla hesaplayın.</div>
+      <div class="note">Aşağıdaki plan yalnızca elinizdeki stokla kesilebilen parçaları gösterir. Malzemeyi tamamlamadan kesime başlarsanız bu parçalar eksik kalır.</div>
+    </div>`);
+  }
+  if (long.length) {
+    const n = long.reduce((a, u) => a + u.n, 0);
+    h.push(`<div class="alarm" role="alert" tabindex="-1">
+      <div class="ah">⚠ PARÇA STOĞA SIĞMIYOR</div>
+      <div class="big">${n} parça hiçbir stok boyunuzdan çıkmaz.</div>
+      ${alarmList(long.map(u => `${u.n} × ${fmt(u.len)} mm${labelText(u.labels)} — en az <u>${fmt(u.need)} mm</u> boy gerekir`))}
+      <div class="note">Gereken boya kafa payları ve onları kesmek için gereken testere payları dahildir. Daha uzun stok ekleyin ya da parçayı bölün.</div>
+    </div>`);
+  }
+  const totalLen = input.parts.reduce((a, p) => a + p.len * p.qty, 0);
+  h.push(`<section class="print-only inputs">
+    <div><h3>Kesilecek parçalar</h3><table><thead><tr><th class="n">Adet</th><th class="n">Uzunluk (mm)</th><th>Etiket</th></tr></thead>
+    <tbody>${input.parts.map(p => `<tr><td class="n">${p.qty}</td><td class="n">${fmt(p.len)}</td><td>${p.label ? esc(p.label) : '–'}</td></tr>`).join('')}</tbody>
+    <tfoot><tr><td class="n">${totalParts}</td><td class="n">${fmt(Math.round(totalLen / 10) / 100)} m</td><td>Toplam</td></tr></tfoot></table></div>
+    <div><h3>Stok boylar</h3><table><thead><tr><th class="n">Adet</th><th class="n">Uzunluk (mm)</th></tr></thead>
+    <tbody>${input.stocks.map(st => `<tr><td class="n">${st.qty === Infinity ? 'Sınırsız' : st.qty}</td><td class="n">${fmt(st.len)}</td></tr>`).join('')}</tbody></table></div>
+  </section>`);
+  h.push(`<div class="legend"><span><span class="chip p"></span> Kesilen parça</span><span><span class="chip s"></span> Artık (stoktan kalan)</span>${opt.head > 0 || opt.tail > 0 ? '<span><span class="chip h"></span> Kafa payı</span>' : ''}</div>`);
+  h.push(`<section class="card"><div class="stats">
+    <div class="stat"><b>${r.bars}</b><span>Kullanılan boy</span></div>
+    <div class="stat"><b>%${fmt(Math.round(util * 1000) / 10)}</b><span>Verim</span></div>
+    <div class="stat"><b>${fmt(Math.round((r.stockLen - used) / 10) / 100)} m</b><span>Toplam fire (artık dahil)</span></div>
+    <div class="stat"><b>${fmt(Math.round(restSum / 10) / 100)} m</b><span>Artık parçalar</span></div>
+    <div class="stat${placed < totalParts ? ' bad' : ''}"><b>${placed} / ${totalParts}</b><span>Yerleşen parça${placed < totalParts ? ` · ${totalParts - placed} EKSİK` : ''}</span></div>
+  </div>${perStock.size ? `<div class="uses">${[...perStock].map(([l, n]) => `${fmt(l)} mm: <b>${n} adet</b>`).join(' · ')}</div>` : ''}</section>`);
+  let no = 1;
+  for (const g of r.groups) {
+    const title = g.times === 1 ? `Boy ${no}` : `Boy ${no}–${no + g.times - 1}`;
+    no += g.times;
+    const L = g.stockLen, pct = v => (v / L * 100) + '%';
+    const segs = [];
+    let x = 0;
+    if (opt.head > 0) { segs.push(`<div class="seg head" style="left:0;width:max(6px,${pct(opt.head)})" title="Baş kafa payı ${fmt(opt.head)} mm"></div>`); x = opt.head + opt.kerf; }
+    for (const it of g.items) for (let k = 0; k < it.n; k++) {
+      segs.push(`<div class="seg" style="left:${pct(x)};width:${pct(it.len)};background:${colorOf.get(it.len)}" title="${fmt(it.len)} mm">${fmt(it.len)}</div>`);
+      x += it.len + opt.kerf;
+    }
+    if (g.rest > 0) segs.push(`<div class="seg rest" style="left:${pct(x)};width:${pct(g.rest)}" title="Artık ${fmt(g.rest)} mm">${fmt(g.rest)}</div>`);
+    if (opt.tail > 0) segs.push(`<div class="seg head" style="right:0;width:max(6px,${pct(opt.tail)})" title="Son kafa payı ${fmt(opt.tail)} mm"></div>`);
+    h.push(`<section class="card group">
+      <h3>${title}${g.times > 1 ? ` <span>· ${g.times} adet aynı kesim</span>` : ''}<span class="pct">%${fmt(Math.round(g.used / L * 1000) / 10)}</span></h3>
+      <div class="hint" style="margin:2px 0 0">Stok ${fmt(L)} mm</div>
+      <div class="bar" role="img" aria-label="${fmt(L)} mm boy kesim planı">${segs.join('')}</div>
+      <ul class="list">${g.items.map(it => `<li>${it.n} × ${fmt(it.len)} mm${g.times > 1 ? ' her boyda' : ''}${labelText(it.labels, g.times)}</li>`).join('')}
+      <li>Artık: ${g.rest > 0 ? fmt(g.rest) + ' mm' : 'yok'}</li></ul>
+    </section>`);
+  }
+  $('#out').innerHTML = h.join('');
+  $('#out').classList.remove('stale');
+}
+
+// Hesap arka planda (Web Worker) yapılır, sayfa donmaz. Worker açılamazsa (bazı ortamlar engeller) aynı kod sayfada çalışır.
+function solveJob(input) {
+  const r = solveCuts(input.parts, input.stocks, input.opt);
+  const more = r.unplaced.some(u => u.reason === 'stock') ? moreStock(input) : [];
+  return { r, more };
+}
+let worker = null, workerOk = typeof Worker !== 'undefined', jobId = 0;
+function getWorker() {
+  if (!workerOk) return null;
+  if (worker) return worker;
+  try {
+    const src = [solveCuts, moreStock, solveJob].map(f => f.toString()).join('\n') +
+      '\nself.onmessage = e => { let m; try { m = { id: e.data.id, ...solveJob(e.data.input) }; } catch (err) { m = { id: e.data.id, error: String(err) }; } self.postMessage(m); };';
+    const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    worker = new Worker(url);
+    URL.revokeObjectURL(url);
+  } catch { workerOk = false; worker = null; }
+  return worker;
+}
+function dropWorker() { workerOk = false; try { worker?.terminate(); } catch {} worker = null; }
+function solveAsync(input) {
+  return new Promise(resolve => {
+    const local = () => resolve(solveJob(input));
+    const w = getWorker();
+    if (!w) return local();
+    const id = ++jobId;
+    let timer = null;
+    const finish = fn => { clearTimeout(timer); w.onmessage = null; w.onerror = null; fn(); };
+    w.onmessage = e => {
+      if (e.data?.id !== id) return;
+      finish(() => { if (e.data.error) { dropWorker(); local(); } else resolve({ r: e.data.r, more: e.data.more }); });
+    };
+    w.onerror = ev => { ev.preventDefault?.(); finish(() => { dropWorker(); local(); }); };
+    timer = setTimeout(() => finish(() => { dropWorker(); local(); }), 30000); // olağan dışı takılma
+    w.postMessage({ id, input });
+  });
+}
+let gen = 0; // Temizle'ye basılırsa süren hesabın sonucu atılır
+async function calculate() {
+  const input = collect(); if (!input) return false;
+  const s = sig(), myGen = gen;
+  const { r, more } = await solveAsync(input);
+  if (myGen !== gen) return false;
+  r.groups.forEach(g => g.stockLen = input.stocks[g.stock].len);
+  input.more = more;
+  show(input, r);
+  lastSig = s;
+  $('#out').classList.toggle('stale', sig() !== s); // hesap sürerken giriş değiştiyse
+  return true;
+}
+// Stok yetmediğinde: her stok boyu için, yalnızca o boydan ek alınırsa kaç adet gerektiğini bul
+function moreStock(input) {
+  const out = [];
+  const now = () => performance.now(), until = now() + 1500; // toplam süre sınırı; dolarsa güvenli (büyük) adet kalır
+  const lens = [...new Set(input.stocks.map(s => s.len))].sort((a, b) => b - a).slice(0, 5);
+  for (const len of lens) {
+    if (out.length && now() > until) break; // en az bir öneri olsun, sonra süreye uy
+    const extra = [...input.stocks, { len, qty: Infinity }];
+    const r = solveCuts(input.parts, extra, input.opt, 300);
+    if (r.unplaced.some(u => u.reason === 'stock')) continue;
+    const used = r.groups.filter(g => extra[g.stock].len === len).reduce((a, g) => a + g.times, 0);
+    const have = input.stocks.filter(s => s.len === len).reduce((a, s) => a + s.qty, 0);
+    if (used <= have) continue;
+    // Çözücü elinizdeki başka boyları bırakıp yeni boyu seçebilir; yetecek en küçük adedi ikili aramayla bul
+    let lo = 1, hi = used - have;
+    while (lo < hi && now() < until) {
+      const mid = Math.floor((lo + hi) / 2);
+      const t = solveCuts(input.parts, [...input.stocks, { len, qty: mid }], input.opt, 150);
+      if (t.unplaced.some(u => u.reason === 'stock')) lo = mid + 1; else hi = mid;
+    }
+    out.push({ len, n: hi });
+  }
+  return out.sort((a, b) => a.len * a.n - b.len * b.n).slice(0, 3);
+}
+let busy = false;
+async function runCalc() {
+  if (busy) return false;
+  busy = true;
+  const b = $('#calc');
+  b.disabled = true; b.textContent = 'Hesaplanıyor…';
+  let ok = false;
+  try {
+    await new Promise(r => setTimeout(r, 30)); // düğme yazısı ekrana gelsin
+    ok = await calculate();
+  } finally { busy = false; b.disabled = false; b.textContent = 'Hesapla'; }
+  return ok;
+}
+$('#calc').onclick = async () => {
+  if (!(await runCalc())) return;
+  const alarm = $('#out .alarm');
+  if (alarm) { alarm.scrollIntoView({ behavior: 'smooth', block: 'start' }); alarm.focus({ preventScroll: true }); }
+  else if (window.innerWidth < 700) $('#out').scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+// Yazdır: plan yoksa ya da eskiyse önce hesaplar.
+$('#print').onclick = async () => {
+  if (busy) return;
+  if ((lastSig === null || sig() !== lastSig) && !(await runCalc())) return;
+  try { window.print(); } catch {}
+};
+$('#out').addEventListener('click', e => {
+  const m = e.target.closest('.showmore'); if (m) m.closest('.alarm').classList.add('showall');
+});
+// Temizle: onay penceresi (confirm) bazı ortamlarda engellendiği için iki kez basma
+let resetTimer = null;
+$('#reset').onclick = () => {
+  const b = $('#reset');
+  if (!resetTimer) { b.textContent = 'Emin misiniz? Tekrar basın'; resetTimer = setTimeout(() => { b.textContent = 'Temizle'; resetTimer = null; }, 4000); return; }
+  clearTimeout(resetTimer); resetTimer = null; b.textContent = 'Temizle';
+  gen++;
+  S = defaults(); save(); render(); lastSig = null;
+  $('#out').innerHTML = ''; $('#msg').textContent = ''; $('#info').textContent = '';
+};
+render();
+</script>
+<!-- Default Statcounter code for Boy Kesim Optimizasyonu
+https://burakakgulll.github.io/boykesim -->
+<script type="text/javascript">
+var sc_project=13368213;
+var sc_invisible=1;
+var sc_security="9b23a2e5";
+</script>
+<script type="text/javascript"
+src="https://www.statcounter.com/counter/counter.js"
+async></script>
+<noscript><div class="statcounter"><a title="Web Analytics"
+href="https://statcounter.com/" target="_blank"><img
+class="statcounter"
+src="https://c.statcounter.com/13368213/0/9b23a2e5/1/"
+alt="Web Analytics"
+referrerPolicy="no-referrer-when-downgrade"></a></div></noscript>
+<!-- End of Statcounter Code -->
+</body>
+</html>
